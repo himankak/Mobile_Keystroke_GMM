@@ -11,6 +11,8 @@ from sklearn.mixture import GaussianMixture
 from sklearn import preprocessing
 from EER_GMM import evaluateEERGMM
 from numpy import array
+# matplotlib inline
+import matplotlib.pyplot as plt
 import pandas
 import numpy as np
 import warnings
@@ -27,9 +29,11 @@ class GMMDetector:
         # self.user_scores_new = []
         # self.imposter_scores_new = []
         self.subjects = subjects
+        self.new_user_scores = np.array([])
+        self.new_impostor_scores = np.array([])
         
     def training(self):
-        self.gmm = GaussianMixture(n_components = 3, covariance_type = 'diag', verbose = False, random_state = 150)
+        self.gmm = GaussianMixture(n_components=2, covariance_type='diag', verbose=False, random_state=200)
 #        self.plot_gmm(self.gmm, data)
         self.gmm.fit(self.train)
  
@@ -40,6 +44,11 @@ class GMMDetector:
             # cur_score = preprocessing.normalize(cur_score, norm='l2')
             self.user_scores.append(cur_score)
 
+        # temp_gen = np.array(self.user_scores)
+        # print(temp_gen)
+        # self.new_user_scores = np.append(self.new_user_scores, temp_gen, axis=0)
+        # print(self.new_user_scores)
+        # temp_gen = np.delete(temp_gen, np.s_[0:], axis=0)
         # self.user_scores_new = array(self.user_scores)
         # self.user_scores_new = self.user_scores_new.reshape(-1, 1)
         # self.user_scores_new = preprocessing.normalize(self.user_scores_new, norm='l1')
@@ -50,13 +59,19 @@ class GMMDetector:
             # cur_score = preprocessing.normalize(cur_score, norm='l2')
             self.imposter_scores.append(cur_score)
 
+        # temp_imp = np.array(self.imposter_scores)
+        # print(temp_imp)
+        # self.new_impostor_scores = np.append(self.new_impostor_scores, temp_imp, axis=0)
+        # print(self.new_impostor_scores)
+        # temp_imp = np.delete(temp_imp, np.s_[0:], axis=0)
         # self.imposter_scores_new = array(self.imposter_scores)
         # self.imposter_scores_new = self.imposter_scores_new.reshape(-1, 1)
         # self.imposter_scores_new = preprocessing.normalize(self.imposter_scores_new, norm='l1')
     
     def evaluate(self):
         eers = []
- 
+        user_scores_all = []
+        imposter_scores_all = []
         for subject in subjects:        
             genuine_user_data = data.loc[data.subject == subject, \
                                          "KDT.1":"FA(n+1).17"]
@@ -85,8 +100,20 @@ class GMMDetector:
 # data.columns.str.startswith('RRT')
             self.training()
             self.testing()
+            print("USER:", self.user_scores)
+            print("IMPOSTER:", self.imposter_scores)
+            user_scores_all.append(self.user_scores)
+            imposter_scores_all.append(self.imposter_scores)
             eers.append(evaluateEERGMM(self.user_scores, self.imposter_scores))
         print(eers)
+        # print("USER SCORES:", self.new_user_scores)
+        # print("SHAPE and SIZE", self.new_user_scores.shape, self.new_user_scores.size)
+        # print("IMPOSTER SCORE:", self.new_impostor_scores)
+        # print("SHAPE and SIZE", self.new_impostor_scores.shape, self.new_impostor_scores.size)
+
+        # plt.plot(self.user_scores, self.imposter_scores)
+        # plt.xlabel('Features')
+        # plt.ylabel('Users')
         return np.mean(eers)
     
 #    def draw_ellipse(position, covariance, ax=None, **kwargs):
@@ -122,12 +149,16 @@ class GMMDetector:
 
 path = "D:\\Keystroke\\TEH_FEATURES.csv" 
 data = pandas.read_csv(path)
-subjects = data["subject"].unique()
-# x = data.loc["KDT.1":"FA(n+1).17"].values       #returns a numpy array
-x = data.as_matrix(columns=data.columns[2:137])
-min_max_scaler = preprocessing.MinMaxScaler()
+#preprocessing for normalization
+x = data.as_matrix(columns=data.columns[2:138])
+xx = data.as_matrix(columns=data.columns[0:2])
+min_max_scaler = preprocessing.MinMaxScaler()       #min_max normalization
 x_scaled = min_max_scaler.fit_transform(x)
 print(x_scaled)
-data.loc["KDT.1":] = pandas.DataFrame(x_scaled)
+data_user = pandas.DataFrame(xx, index=data.index, columns=data.columns[0:2], dtype=None, copy=True)
+data_new = pandas.DataFrame(x_scaled, index=data.index, columns=data.columns[2:138], dtype=None, copy=True)
+data_final = pandas.concat([data_user, data_new], axis=1)
+data = data_final
+subjects = data["subject"].unique()
 print("average EER for GMM detector:")
 print(GMMDetector(subjects).evaluate())

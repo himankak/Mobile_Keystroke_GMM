@@ -8,6 +8,7 @@ Created on Mon Nov 25 19:27:10 2019
 #keystroke_GMM.py
 
 from sklearn.mixture import GaussianMixture
+from sklearn import preprocessing
 import pandas
 from EER_GMM import evaluateEERGMM
 import numpy as np
@@ -24,8 +25,7 @@ class GMMDetector:
         self.subjects = subjects
         
     def training(self):
-        self.gmm = GaussianMixture(n_components = 2, covariance_type = 'full',
-                        verbose = False, random_state = 54 )
+        self.gmm = GaussianMixture(n_components=4, covariance_type='diag', verbose=False, random_state=60)
         self.gmm.fit(self.train)
         
 #    def draw_ellipse(position, covariance, ax=None, **kwargs):
@@ -95,6 +95,8 @@ class GMMDetector:
 
     def evaluate(self):
         eers = []
+        user_scores_all = []
+        imposter_scores_all = []
 
         for subject in subjects:
             genuine_user_data = data.loc[data.subject == subject, \
@@ -109,13 +111,30 @@ class GMMDetector:
 
             self.training()
             self.testing()
+            print("USER:", self.user_scores)
+            print("IMPOSTER:", self.imposter_scores)
+            user_scores_all.append(self.user_scores)
+            imposter_scores_all.append(self.imposter_scores)
             eers.append(evaluateEERGMM(self.user_scores, \
                                        self.imposter_scores))
-        np.mean(eers)
+        return np.mean(eers)
 
 
 path = "D:\\Keystroke\\logicalstrong.csv"
 data = pandas.read_csv(path)
-subjects = data["subject"].unique()
+#preprocessing for normalization
+x = data.as_matrix(columns=data.columns[1:73])
+xx = data.as_matrix(columns=data.columns[0:1])
+min_max_scaler = preprocessing.MinMaxScaler()       #min_max normalization
+x_scaled = min_max_scaler.fit_transform(x)
+print(x_scaled)
+data_user = pandas.DataFrame(xx, index=data.index, columns=data.columns[0:1], dtype=None, copy=True)
+data_new = pandas.DataFrame(x_scaled, index=data.index, columns=data.columns[1:73], dtype=None, copy=True)
+data_final = pandas.concat([data_user, data_new], axis=1)
+data = data_final
+# slc = np.r_[data.subject:data.subject]
+# data["subject"].astype(int)
+print(data)
+subjects = data["subject"].astype(int).unique()
 print("average EER for GMM detector:")
 print(GMMDetector(subjects).evaluate())

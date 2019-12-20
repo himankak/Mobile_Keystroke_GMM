@@ -8,7 +8,8 @@ Created on Mon Nov 25 19:27:10 2019
 #keystroke_GMM.py
 
 from sklearn.mixture import GaussianMixture
-import pandas
+from sklearn import preprocessing
+import pandas 
 from EER_GMM import evaluateEERGMM
 import numpy as np
 import warnings
@@ -21,11 +22,12 @@ class GMMDetector:
         self.user_scores = []
         self.imposter_scores = []
         self.mean_vector = []
+        self.new_user_scores = np.array([])
+        self.new_impostor_scores = np.array([])
         self.subjects = subjects
         
     def training(self):
-        self.gmm = GaussianMixture(n_components = 2, covariance_type = 'full',
-                        verbose = False, random_state = 54 )
+        self.gmm = GaussianMixture(n_components=2, covariance_type='diag', verbose=False, random_state=60)
         self.gmm.fit(self.train)
         
 #    def draw_ellipse(position, covariance, ax=None, **kwargs):
@@ -67,6 +69,7 @@ class GMMDetector:
             j = self.test_imposter.iloc[i].values
             cur_score = self.gmm.score(j.reshape(1, -1))
             self.imposter_scores.append(cur_score)
+
  
 #    def evaluate(self):
 #        eers = []
@@ -95,27 +98,44 @@ class GMMDetector:
 
     def evaluate(self):
         eers = []
+        user_scores_all = []
+        imposter_scores_all = []
 
         for subject in subjects:
             genuine_user_data = data.loc[data.subject == subject, \
-                                "holdtime1":"totaldistance"]
+                                "0":"press_z_rotation_minus_press_z_rotation_9"]
 #            plt.scatter(genuine_user_data[:, 0], genuine_user_data[:, 1], c=labels, s=40, cmap='viridis');
             imposter_data = data.loc[data.subject != subject, :]
 
-            self.train = genuine_user_data[:50]
-            self.test_genuine = genuine_user_data[10:]
+            self.train = genuine_user_data[:35]
+            self.test_genuine = genuine_user_data[5:]
             self.test_imposter = imposter_data.groupby("subject"). \
-                                     head(10).loc[:, "holdtime1":"totaldistance"]
+                                     head(5).loc[:, "0":"press_z_rotation_minus_press_z_rotation_9"]
 
             self.training()
             self.testing()
+            print("USER:", self.user_scores)
+            print("IMPOSTER:", self.imposter_scores)
+            user_scores_all.append(self.user_scores)
+            imposter_scores_all.append(self.imposter_scores)
             eers.append(evaluateEERGMM(self.user_scores, \
                                        self.imposter_scores))
-        np.mean(eers)
+        return np.mean(eers)
 
 
-path = "D:\\Keystroke\\logicalstrong.csv"
+path = "D:\\Keystroke\\mobile_pace-sensor_features.csv"
 data = pandas.read_csv(path)
+#preprocessing for normalization
+x = data.as_matrix(columns=data.columns[2:621])
+xx = data.as_matrix(columns=data.columns[0:2])
+min_max_scaler = preprocessing.MinMaxScaler()       #min_max normalization
+x_scaled = min_max_scaler.fit_transform(x)
+print(x_scaled)
+data_user = pandas.DataFrame(xx, index=data.index, columns=data.columns[0:2], dtype=None, copy=True)
+data_new = pandas.DataFrame(x_scaled, index=data.index, columns=data.columns[2:621], dtype=None, copy=True)
+data_final = pandas.concat([data_user, data_new], axis=1)
+data = data_final
+print(data)
 subjects = data["subject"].unique()
 print("average EER for GMM detector:")
 print(GMMDetector(subjects).evaluate())
