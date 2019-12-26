@@ -25,7 +25,7 @@ class GMMDetector:
         self.subjects = subjects
         
     def training(self):
-        self.gmm = GaussianMixture(n_components=4, covariance_type='diag', verbose=False, random_state=60)
+        self.gmm = GaussianMixture(n_components=8, covariance_type='diag', verbose=False, random_state=100)
         self.gmm.fit(self.train)
         
 #    def draw_ellipse(position, covariance, ax=None, **kwargs):
@@ -104,10 +104,10 @@ class GMMDetector:
 #            plt.scatter(genuine_user_data[:, 0], genuine_user_data[:, 1], c=labels, s=40, cmap='viridis');
             imposter_data = data.loc[data.subject != subject, :]
 
-            self.train = genuine_user_data[:50]
-            self.test_genuine = genuine_user_data[10:]
+            self.train = genuine_user_data[:55]
+            self.test_genuine = genuine_user_data[5:]
             self.test_imposter = imposter_data.groupby("subject"). \
-                                     head(10).loc[:, "holdtime1":"totaldistance"]
+                                     head(5).loc[:, "holdtime1":"totaldistance"]
 
             self.training()
             self.testing()

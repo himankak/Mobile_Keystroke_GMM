@@ -110,7 +110,7 @@ class GMMDetector:
             self.train = genuine_user_data[:35]
             self.test_genuine = genuine_user_data[5:]
             self.test_imposter = imposter_data.groupby("subject"). \
-                                     head(5).loc[:, "0":"press_z_rotation_minus_press_z_rotation_9"]
+                                     head(3).loc[:, "0":"press_z_rotation_minus_press_z_rotation_9"]
 
             self.training()
             self.testing()

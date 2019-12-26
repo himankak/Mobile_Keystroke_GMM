@@ -96,7 +96,7 @@ class GMMDetector:
             self.train = genuine_user_data[:7]
             self.test_genuine = genuine_user_data[3:]
             self.test_imposter = imposter_data.groupby("subject"). \
-                                 head(3).loc[:, "KDT.1":"FA(n+1).17"]
+                                 head(2).loc[:, "KDT.1":"FA(n+1).17"]
 # data.columns.str.startswith('RRT')
             self.training()
             self.testing()
