@@ -12,6 +12,8 @@ from sklearn import preprocessing
 import pandas
 from EER_GMM import evaluateEERGMM
 import numpy as np
+from scipy import stats
+import csv
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -23,9 +25,14 @@ class GMMDetector:
         self.imposter_scores = []
         self.mean_vector = []
         self.subjects = subjects
+        self.new_user_scores = []
+        self.new_impostor_scores = []
+
+    """n_component = 10 (minmax) & = 55 (zscore) reg_covar = 1e-12 (minmax) and 1e-2 (zscore) for the whole dataset.. FEATURE FUSION"""
         
     def training(self):
-        self.gmm = GaussianMixture(n_components=8, covariance_type='diag', verbose=False, random_state=100)
+        self.gmm = GaussianMixture(n_components=55, init_params='random', covariance_type='diag', verbose=False,
+                                   max_iter=1000, reg_covar=1e-12, random_state=1000)
         self.gmm.fit(self.train)
         
 #    def draw_ellipse(position, covariance, ax=None, **kwargs):
@@ -62,61 +69,48 @@ class GMMDetector:
             j = self.test_genuine.iloc[i].values
             cur_score = self.gmm.score(j.reshape(1, -1))
             self.user_scores.append(cur_score)
+            self.new_user_scores.append(cur_score)
  
         for i in range(self.test_imposter.shape[0]):
             j = self.test_imposter.iloc[i].values
             cur_score = self.gmm.score(j.reshape(1, -1))
             self.imposter_scores.append(cur_score)
- 
-#    def evaluate(self):
-#        eers = []
-# 
-#        for subject in subjects:        
-#            genuine_user_data = data.loc[data.subject == subject, \
-#                                         "H.period":"H.Return"]
-#            imposter_data = data.loc[data.subject != subject, :]
-#            
-#            self.train = genuine_user_data[:200]
-#            self.test_genuine = genuine_user_data[200:]
-#            self.test_imposter = imposter_data.groupby("subject"). \
-#                                 head(5).loc[:, "H.period":"H.Return"]
-# 
-#            self.training()
-#            self.testing()
-#            eers.append(evaluateEERGMM(self.user_scores, \
-#                                     self.imposter_scores))
-#        return np.mean(eers)
-#    
-#path = "D:\\Keystroke\\keystroke.csv" 
-#data = pandas.read_csv(path)
-#subjects = data["subject"].unique()
-#print("average EER for GMM detector:")
-#print(GMMDetector(subjects).evaluate())
+            self.new_impostor_scores.append(cur_score)
 
     def evaluate(self):
         eers = []
-        user_scores_all = []
-        imposter_scores_all = []
 
         for subject in subjects:
             genuine_user_data = data.loc[data.subject == subject, \
-                                "holdtime1":"totaldistance"]
-#            plt.scatter(genuine_user_data[:, 0], genuine_user_data[:, 1], c=labels, s=40, cmap='viridis');
+                                data.columns.str.startswith("holdtime")]
+            # "holdtime1": "totaldistance" (("hold", "up", "down"))  "pressure", "fingerarea", "meanp", "meanfin",
+            # "totaldis", "vel" plt.scatter(genuine_user_data[:, 0], genuine_user_data[:, 1], c=labels, s=40,
+            # cmap='viridis'); "meanxacc", "meanyacc", "meanzacc"
             imposter_data = data.loc[data.subject != subject, :]
 
             self.train = genuine_user_data[:55]
             self.test_genuine = genuine_user_data[5:]
             self.test_imposter = imposter_data.groupby("subject"). \
-                                     head(5).loc[:, "holdtime1":"totaldistance"]
+                                     head(2).loc[:, data.columns.str.startswith("holdtime")]
 
             self.training()
             self.testing()
-            print("USER:", self.user_scores)
-            print("IMPOSTER:", self.imposter_scores)
-            user_scores_all.append(self.user_scores)
-            imposter_scores_all.append(self.imposter_scores)
+            # with open("D:\\Keystroke\\FAR_FRR_VALUES\\GENUINE_ANTAL_MIN_MAX_KDT.csv", "a", newline='') as fp:
+            #     wr = csv.writer(fp, dialect='excel')
+            #     wr.writerow(self.new_user_scores)
+            # with open("D:\\Keystroke\\FAR_FRR_VALUES\\IMPOSTOR_ANTAL_MIN_MAX_KDT.csv", "a", newline='') as fp:
+            #     wr = csv.writer(fp, dialect='excel')
+            #     wr.writerow(self.new_impostor_scores)
+            with open("D:\\Keystroke\\FAR_FRR_VALUES\\GENUINE_ANTAL_Z_SCORE_KDT.csv", "a", newline='') as fp:
+                wr = csv.writer(fp, dialect='excel')
+                wr.writerow(self.new_user_scores)
+            with open("D:\\Keystroke\\FAR_FRR_VALUES\\IMPOSTOR_ANTAL_Z_SCORE_KDT.csv", "a", newline='') as fp:
+                wr = csv.writer(fp, dialect='excel')
+                wr.writerow(self.new_impostor_scores)
             eers.append(evaluateEERGMM(self.user_scores, \
                                        self.imposter_scores))
+            self.new_user_scores.clear()
+            self.new_impostor_scores.clear()
         return np.mean(eers)
 
 
@@ -125,12 +119,14 @@ data = pandas.read_csv(path)
 #preprocessing for normalization
 x = data.as_matrix(columns=data.columns[1:73])
 xx = data.as_matrix(columns=data.columns[0:1])
-min_max_scaler = preprocessing.MinMaxScaler()       #min_max normalization
-x_scaled = min_max_scaler.fit_transform(x)
+min_max_scaler = preprocessing.MinMaxScaler()
+x_scaled = min_max_scaler.fit_transform(x)              #min_max normalization
+z_score = stats.zscore(x, axis=1, ddof=0)               #z_score normalization
 print(x_scaled)
 data_user = pandas.DataFrame(xx, index=data.index, columns=data.columns[0:1], dtype=None, copy=True)
 data_new = pandas.DataFrame(x_scaled, index=data.index, columns=data.columns[1:73], dtype=None, copy=True)
-data_final = pandas.concat([data_user, data_new], axis=1)
+data_new_z_score = pandas.DataFrame(z_score, index=data.index, columns=data.columns[1:73], dtype=None, copy=True)      #z_score dataframe
+data_final = pandas.concat([data_user, data_new_z_score], axis=1)               #interchange between data_new and data_new_z_score to find results on both tech.
 data = data_final
 # slc = np.r_[data.subject:data.subject]
 # data["subject"].astype(int)
